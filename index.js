@@ -1,13 +1,13 @@
 require('dotenv').config();
 const express = require('express');
 const twilio = require('twilio');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const Anthropic = require('@anthropic-ai/sdk');
 const db = require('./db');
 
 const app = express();
 app.use(express.urlencoded({ extended: false }));
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const client = new Anthropic();
 
 const SYSTEM_PROMPT = `You are an expense tracking assistant.
 When a user sends an expense, extract and reply ONLY with JSON:
@@ -20,11 +20,13 @@ If unclear: {"action": "unknown", "reply": "friendly help message"}
 Always reply JSON only. No extra text.`;
 
 async function parseExpense(message) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-  const result = await model.generateContent(SYSTEM_PROMPT + '\n\nUser: ' + message);
-  const text = result.response.text().trim();
-  const clean = text.replace(/```json|```/g, '').trim();
-  return JSON.parse(clean);
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 300,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: message }]
+  });
+  return JSON.parse(response.content[0].text.trim());
 }
 
 function getCategoryEmoji(cat) {
